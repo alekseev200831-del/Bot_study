@@ -357,7 +357,7 @@ async def ai_gen_content(message: Message, state: FSMContext):
     try:
         if client_ai:
             response = await client_ai.aio.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=prompt
             )
             text = response.text
@@ -382,7 +382,7 @@ async def ai_chat_process(message: Message, state: FSMContext):
     try:
         if client_ai:
             response = await client_ai.aio.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=message.text,
                 config=types.GenerateContentConfig(
                     system_instruction=f"Ты опытный преподаватель по предмету {subj}. Отвечай понятно, структурированно и вежливо."
