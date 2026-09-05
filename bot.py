@@ -12,9 +12,9 @@ from aiohttp import web
 import os
 
 # ==================== НАСТРОЙКИ ====================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "ТВОЙ_ТОКЕН")
-ADMIN_TG_ID = int(os.getenv("ADMIN_TG_ID", "123456789"))
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@your_username")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8116407976:AAFhBu6RJ79HF_PswnPZrxJbe95b6zMgE9c")
+ADMIN_TG_ID = int(os.getenv("ADMIN_TG_ID", "800295680"))
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@d67i67m67a67")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 client_ai = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
