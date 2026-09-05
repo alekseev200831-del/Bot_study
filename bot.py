@@ -7,7 +7,8 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 from aiohttp import web
 import os
 
@@ -15,9 +16,12 @@ import os
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8116407976:AAFhBu6RJ79HF_PswnPZRxJbe95b6zMgE9c")
 ADMIN_TG_ID = int(os.getenv("ADMIN_TG_ID", "800295680"))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@d67i67m67a67")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
-client_ai = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+# Ключ Gemini API (берется из переменных окружения)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Инициализация бесплатного клиента Gemini
+client_ai = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Флаг доступа к предметам (ОТКРЫТО)
 SUBJECTS_OPEN = True 
@@ -326,7 +330,7 @@ async def get_formulas(message: Message, state: FSMContext):
         parse_mode="Markdown"
     )
 
-# --- 💎 ПРЕМИУМ ФУНКЦИИ И ИИ ---
+# --- 💎 ПРЕМИУМ ФУНКЦИИ И ИИ (GEMINI) ---
 @router.message(F.text == "💎 ИИ Премиум функции")
 async def menu_premium_features(message: Message, state: FSMContext):
     premium = await is_user_premium(message.from_user.id)
@@ -338,7 +342,7 @@ async def menu_premium_features(message: Message, state: FSMContext):
             parse_mode="Markdown"
         )
         return
-    await message.answer("💎 **Премиум-меню ИИ**. Выберите опцию:", reply_markup=get_premium_features_keyboard(), parse_mode="Markdown")
+    await message.answer("💎 **Премиум-меню ИИ (Gemini)**. Выберите опцию:", reply_markup=get_premium_features_keyboard(), parse_mode="Markdown")
 
 @router.message(F.text.in_(["🎯 Тест от ИИ", "🧩 Задача от ИИ", "🎓 Эмуляция экзамена"]))
 async def ai_gen_content(message: Message, state: FSMContext):
@@ -347,16 +351,16 @@ async def ai_gen_content(message: Message, state: FSMContext):
     data = await state.get_data()
     subj = data.get("current_subject", "Строительство")
     
-    await message.answer("🤖 ИИ генерирует материал, подождите...")
+    await message.answer("🤖 ИИ думает над ответом...")
     prompt = f"Сгенерируй для студента {message.text} по предмету {subj}."
     
     try:
         if client_ai:
-            response = await client_ai.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}]
+            response = await client_ai.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
             )
-            text = response.choices[0].message.content
+            text = response.text
         else:
             text = f"⚙️ [Демо-режим]: Сгенерирован {message.text} по предмету {subj}."
         await message.answer(text)
@@ -377,16 +381,16 @@ async def ai_chat_process(message: Message, state: FSMContext):
     await message.answer("🤖 ИИ думает над ответом...")
     try:
         if client_ai:
-            response = await client_ai.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": f"Ты преподаватель по предмету {subj}."},
-                    {"role": "user", "content": message.text}
-                ]
+            response = await client_ai.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=message.text,
+                config=types.GenerateContentConfig(
+                    system_instruction=f"Ты опытный преподаватель по предмету {subj}. Отвечай понятно, структурированно и вежливо."
+                )
             )
-            await message.answer(response.choices[0].message.content)
+            await message.answer(response.text)
         else:
-            await message.answer("⚙️ [Демо-режим]: OpenAI API ключ не установлен.")
+            await message.answer("⚙️ [Демо-режим]: Gemini API ключ не установлен.")
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
 
