@@ -12,15 +12,15 @@ from aiohttp import web
 import os
 
 # ==================== НАСТРОЙКИ ====================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8116407976:AAFhBu6RJ79HF_PswnPZrxJbe95b6zMgE9c")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8116407976:AAFhBu6RJ79HF_PswnPZRxJbe95b6zMgE9c")
 ADMIN_TG_ID = int(os.getenv("ADMIN_TG_ID", "800295680"))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@d67i67m67a67")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 client_ai = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-# Флаг доступа к предметам (Сейчас закрыто)
-SUBJECTS_OPEN = False 
+# Флаг доступа к предметам (ОТКРЫТО)
+SUBJECTS_OPEN = True 
 
 # ==================== ДАТАБАЗА ====================
 DB_NAME = "student_bot.db"
@@ -55,6 +55,8 @@ async def init_db():
         await db.commit()
 
 async def is_user_premium(user_id: int) -> bool:
+    if user_id == ADMIN_TG_ID:
+        return True
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT is_premium FROM users WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
@@ -62,15 +64,17 @@ async def is_user_premium(user_id: int) -> bool:
 
 async def set_user_premium(user_id: int, status: bool):
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT INTO users (user_id, is_premium) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET is_premium=?",
-                         (user_id, int(status), int(status)))
+        await db.execute(
+            "INSERT INTO users (user_id, is_premium) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET is_premium=?",
+            (user_id, int(status), int(status))
+        )
         await db.commit()
 
 # ==================== КЛАВИАТУРЫ ====================
 kb_main = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="⏳ Дедлайны"), KeyboardButton(text="📅 Расписание")],
-        [KeyboardButton(text="🔒 Предметы (В разработке)"), KeyboardButton(text="⭐ Премиум статус")]
+        [KeyboardButton(text="📚 Предметы"), KeyboardButton(text="⭐ Премиум статус")]
     ],
     resize_keyboard=True
 )
@@ -150,6 +154,7 @@ router = Router()
 @router.message(F.text == "🔙 Назад в главное меню")
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    await set_user_premium(message.from_user.id, message.from_user.id == ADMIN_TG_ID)
     await message.answer(
         f"👋 Привет, {message.from_user.first_name}!\n"
         "Я твой помощник по учебе. Выбери нужный раздел на клавиатуре снизу 👇",
@@ -176,8 +181,10 @@ async def add_deadline_title(message: Message, state: FSMContext):
 async def add_deadline_finish(message: Message, state: FSMContext):
     data = await state.get_data()
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("INSERT INTO deadlines (user_id, title, datetime_str) VALUES (?, ?, ?)",
-                         (message.from_user.id, data['title'], message.text))
+        await db.execute(
+            "INSERT INTO deadlines (user_id, title, datetime_str) VALUES (?, ?, ?)",
+            (message.from_user.id, data['title'], message.text)
+        )
         await db.commit()
     await state.clear()
     await message.answer("✅ Дедлайн успешно добавлен! Напоминание будет приходить каждый день в 12:00.", reply_markup=kb_deadlines)
@@ -274,15 +281,7 @@ async def del_lesson_finish(message: Message, state: FSMContext):
         await message.answer("Пожалуйста, введите корректное число (ID).")
 
 # --- 📚 ПРЕДМЕТЫ ---
-@router.message(F.text == "🔒 Предметы (В разработке)")
-async def menu_subjects_closed(message: Message):
-    if not SUBJECTS_OPEN:
-        await message.answer("🔒 Этот раздел пока закрыт. Разработчик добавляет лекции и материалы. Следите за обновлениями!")
-    else:
-        await message.answer("📚 Выберите предмет из списка:", reply_markup=get_subjects_keyboard())
-
-@router.message(F.text == "📚 Предметы")
-@router.message(F.text == "🔙 Назад к предметам")
+@router.message(F.text.in_(["📚 Предметы", "🔒 Предметы (В разработке)", "🔙 Назад к предметам"]))
 async def menu_subjects(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("📚 Выберите предмет из списка:", reply_markup=get_subjects_keyboard())
